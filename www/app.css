@@ -1,0 +1,117 @@
+/* Get a fancy font from Google Fonts */
+
+@font-face {
+   
+   font-family: LATO;
+   src: url(lato/Lato-Black.ttf) format(truetype);
+}
+
+
+
+
+
+
+.content-wrapper {
+  background-image: url("dna.jpg");
+  background: all;
+  width: auto; 
+  height: auto;
+  background-position: all;
+   color: "#283747"; 
+}
+.skin-purple .treeview-menu>li>a {
+    color: #d3cdd8;
+    font-size: 14px;
+}
+
+.skin-purple .left-side, .skin-purple .main-sidebar, .skin-purple .wrapper {
+    background-color: #000000;
+    font-size: 14px;
+}
+
+
+.left-side, .main-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding-top: 50px;
+    min-height: 100%;
+    width: 230px;
+    z-index: 810;
+    -webkit-transition: -webkit-transform .3s ease-in-out,width .3s ease-in-out;
+    -moz-transition: -moz-transform .3s ease-in-out,width .3s ease-in-out;
+    -o-transition: -o-transform .3s ease-in-out,width .3s ease-in-out;
+    transition: transform .3s ease-in-out,width .3s ease-in-out;
+}
+
+/*Color of header*/
+.skin-purple .main-header .navbar {
+    background-color: #568a8a;
+    height: 50px;
+}
+
+
+
+
+.skin-purple .main-header .logo {
+
+  
+  background-repeat: no-repeat;
+  background-image: url("logo.png");
+  background-size: 60%;
+  width: 230px;
+  padding-top: 50px;
+  background-position: 45px;
+  background-color: black;
+}
+
+.skin-purple .main-header .navbar {
+    background-color: #1aa0a0;
+}
+
+.nav-tabs {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+
+body {
+  background-image: url("rnannnn.png");
+   /* Full height */
+  height: 100%;
+
+  /* Center and scale the image nicely */
+  background-position: center;
+  background-repeat: no-rep
+}
+
+
+
+h1 {
+  font-family: LATO;
+  font-size: 24px;
+}
+
+p {
+  font-family: LATO;
+  font-size: 14px;
+}
+
+
+/* Make text visible on inputs }*/
+.main-sidebar {
+  color: red;
+}
+
+/* --------------------------SELECTORS -------------------------------------- */
+
+.mlmreg_variables1-selectized {
+  align-items: left;
+}
+
+.btn.help {
+  align-items: left;
+  color: red;
+}
+
+
