@@ -1,7 +1,7 @@
 require(tidyverse)
 require(DT)
 library(BiocManager)
-#options(repos = BiocManager::repositories())
+options(repos = BiocManager::repositories())
 library(limma)
 require(shinydashboard)
 require(reshape2)
