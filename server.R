@@ -1,8 +1,9 @@
+options(repos = BiocManager::repositories())
+library(BiocManager)
+library(ComplexHeatmap)
+library(limma)
 require(tidyverse)
 require(DT)
-library(BiocManager)
-options(repos = BiocManager::repositories())
-library(limma)
 require(shinydashboard)
 require(reshape2)
 require(shinyjs)
@@ -13,7 +14,26 @@ require(caret)
 require(pROC)
 require(MLmetrics)
 require(class)
-require(ElemStatLearn)
+require(RColorBrewer)
+require(FNN)
+require(cluster)
+require(randomForest)
+require(factoextra)
+require(MASS)
+require(psych)
+require(Boruta)
+require(tidyverse)
+require(DT)
+library(limma)
+require(reshape2)
+require(shinyjs)
+require(dlookr)
+require(caTools)
+require(e1071)
+require(caret)
+require(pROC)
+require(MLmetrics)
+require(class)
 require(RColorBrewer)
 require(FNN)
 require(cluster)
@@ -24,16 +44,27 @@ require(psych)
 require(Boruta)
 require(glmnet)
 require(igraph)
-library(ComplexHeatmap)
 require(shinyDarkmode)
 require(car)
 require(shinyWidgets)
 require(leaflet)
 require(shinyBS)
+require(shinydashboard)
+require(reticulate)
+require(keras)
+
+
 options(shiny.maxRequestSize=400*1024^2) 
 options(warn=-1)
 graphics.off()
 shinyServer(function(input, output, session){
+  ##########################################################################
+  reticulate::install_python()
+  reticulate::virtualenv_create("DeepBC", reticulate::install_python())
+  tensorflow::install_tensorflow(envname = "DeepBC", version = "2.10-cpu", restart_session = FALSE)
+  reticulate::use_python(reticulate::virtualenv_python("DeepBC"), required = TRUE)
+  ############################################################################
+  
   darkmode_toggle(inputid = 'togglemode')
   observeEvent(input$findmemap, {
     toggleModal(session, "modalExample2", "open")
@@ -109,7 +140,7 @@ shinyServer(function(input, output, session){
   
   #################################### error cheking 2 (- expression) ###############
   output$uploaded_predata_hide_tabpanel <- reactive({
-  error_catghing2 <- function(path, sep){
+  error_catching2 <- function(path, sep){
     ext <- str_extract(path, '(?=.)[a-z]{3}$')
     if(sep == ","){
       sepa <- "csv"
@@ -124,7 +155,7 @@ shinyServer(function(input, output, session){
       FALSE
     }
   }
-  error_catghing2(input$uploaded_predata$name, input$datapreprofileformat)
+  error_catching2(input$uploaded_predata$name, input$datapreprofileformat)
   })
   outputOptions(output, 'uploaded_predata_hide_tabpanel', suspendWhenHidden=FALSE)
 
@@ -1404,7 +1435,7 @@ shinyServer(function(input, output, session){
   
   ########################################### Hiding table box  and producing error ############
   output$fileUploaded <- reactive({
-    error_catghing <- function(path, sep){
+    error_catching <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -1435,7 +1466,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing(input$uploaded_expression_table$name, input$data_t)
+    error_catching(input$uploaded_expression_table$name, input$data_t)
   })
   # 
   outputOptions(output, 'fileUploaded', suspendWhenHidden=FALSE)
@@ -1649,77 +1680,112 @@ shinyServer(function(input, output, session){
               axis.text.y = element_text(family = "Times",colour = "black"),
               plot.subtitle = element_text(family = "Times",size = 20, colour = "black", hjust = 0.5),
               axis.title.y = element_text(family = "Times", size = rel(1.4), angle = 90),
-              axis.title.x = element_text(family = "Times", size = rel(1.4), angle = 00))+
+              axis.title.x = element_text(family = "Times", size = rel(1.4), angle = 00))
       ggsave(filename = "volcano.jpeg",
              path = "data/",
-             width = 13,
-             height = 9,
+             width = 10,
+             height = 8,
       )
       volcano
-
     }
   })
   
   
   ######################################### confusion matrix #############################
   confusion_matrix <- function(y_true, y_pred){
-    if(!is.null(y_true) && !is.null(y_pred)){
-      cm <- table(y_true, y_pred)
-      if(dim(cm)[1] == 2){
-        Accuracy <- (cm[1,1] + cm[2,2])/(cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-        Precision <- (cm[1,1])/(cm[1,1] + cm[1,2])
-        Sensitivity <- (cm[1,1])/(cm[1,1] + cm[2,1])
-        Specificity <- (cm[2,2])/ (cm[2,2] + cm[1,2])
-        AUC <- roc(as.numeric(y_true) ~ as.numeric(y_pred), quiet = T)$auc[1]
-        result <- round(data.frame(Accuracy = Accuracy, Precision = Precision, Sensitivity = Sensitivity , Specificity = Specificity, AUC = AUC),3)
-        return(result)
-      }
-      else if (NROW(cm) > 2){
-        TP <- list()
-        for(i in 1:NROW(cm)){
-          TP[[i]] <- cm[i,i]
+      if(!is.null(y_true) && !is.null(y_pred)){
+        y_true <- factor(y_true)
+        y_pred <- factor(y_pred)
+        cm <- table(y_true, y_pred)
+        missing_1 <- which(!colnames(cm) %in% rownames(cm))
+        missing_2 <- which(!rownames(cm) %in% colnames(cm))
+        if(length(missing_1) > 0) {
+          zero_list <- list()
+          for(i in seq_along(missing_1)){
+            zero_list[[colnames(cm)[missing_1][i]]] <- rep(0, NCOL(cm))
+          }
+          zero_df <- do.call(rbind, zero_list)
+          cm <- rbind(zero_df, cm)
+          cm <- cm[colnames(cm),]
         }
-        TP <- data.frame(do.call(rbind,TP))
-        FN <- rowSums(cm) - TP[,1]
-        FP <- colSums(cm) - TP[,1]
-        TN <- list()
-        for(i in 1:NROW(cm)){
-          TN[[i]] <- sum(cm) - sum(cm[i,]) - sum(cm[,i]) + cm[i,i]
+        else if(length(missing_2) > 0){
+          zero_list <- list()
+          for(i in seq_along(missing_2)){
+            zero_list[[rownames(cm)[missing_2][i]]] <- rep(0, NROW(cm))
+          }
+          zero_df <- do.call(cbind, zero_list)
+          cm <- cbind(zero_df, cm)
+          cm <- cm[,rownames(cm)]
+        } else {
+          cm <- cm[,rownames(cm)]
         }
-        TN <- data.frame(do.call(rbind, TN))
-        con <- cbind(TP, FN, FP, TN)
-        colnames(con) <- c("TP", "FN", "FP", "TN")
-        rownames(con) <- rownames(cm)
-        a <- list()
-        for (i in 1:NROW(con)) {
-          a[[i]] <- (con$TP[i] + con$TN[i])/(con$TP[i] + con$TN[i] + con$FN[i] + con$FP[i])
-        }
-        p <- list()
-        for (i in 1:NROW(con)) {
-          p[[i]] <- con$TP[i]/(con$TP[i] + con$FP[i])
-        }  
-        se <- list()
-        for (i in 1:NROW(con)) {
-          se[[i]] <- con$TP[i]/(con$TP[i] + con$FN[i])
-        }  
-        sp <- list()
-        for (i in 1:NROW(con)) {
-          sp[[i]] <- con$TN[i]/(con$TN[i] + con$FP[i])
-        }  
-        a <- do.call(rbind, a)
-        p <- do.call(rbind, p)
-        se <- do.call(rbind, se)
-        sp <- do.call(rbind, sp)
-        au <- multiclass.roc(as.numeric(y_true) ~ as.numeric(y_pred), quiet = T)$auc[1]
-        au <- rep(au, length.out= NROW(con))
-        result <- round(cbind(a, p, se, sp, au),3)
-        colnames(result) <- c("Accuracy", "Precision", "Sensitivity", "Specificity", "AUC_average")
-        rownames(result) <- rownames(cm)
         
-        return(result)
+        if(NROW(cm) == 2 & NCOL(cm) == 2){
+          Accuracy <- (cm[1,1] + cm[2,2])/(cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+          Precision <- (cm[1,1])/(cm[1,1] + cm[1,2])
+          Sensitivity <- (cm[1,1])/(cm[1,1] + cm[2,1])
+          Specificity <- (cm[2,2])/ (cm[2,2] + cm[1,2])
+          AUC <- pROC::roc(as.numeric(y_true) ~ as.numeric(y_pred), quiet = T)$auc[1]
+          f1_score <- 2*(Precision*Sensitivity)/(Precision + Sensitivity)
+          result <- round(data.frame(Accuracy = Accuracy, 
+                                     Precision = Precision, 
+                                     Sensitivity = Sensitivity , 
+                                     F1_Score = f1_score, 
+                                     Specificity = Specificity, 
+                                     AUC = AUC),3)
+          return(result)
+        }
+        else if (NROW(cm) > 2 | NCOL(cm) > 2){
+          TP <- list()
+          for(i in 1:NROW(cm)){
+            TP[[i]] <- cm[i,i]
+          }
+          TP <- data.frame(do.call(rbind,TP))
+          FN <- rowSums(cm) - TP[,1]
+          FP <- colSums(cm) - TP[,1]
+          TN <- list()
+          for(i in 1:NROW(cm)){
+            TN[[i]] <- sum(cm) - sum(cm[i,]) - sum(cm[,i]) + cm[i,i]
+          }
+          TN <- data.frame(do.call(rbind, TN))
+          con <- cbind(TP, FN, FP, TN)
+          colnames(con) <- c("TP", "FN", "FP", "TN")
+          rownames(con) <- rownames(cm)
+          a <- list()
+          for (i in 1:NROW(con)) {
+            a[[i]] <- (con$TP[i] + con$TN[i])/(con$TP[i] + con$TN[i] + con$FN[i] + con$FP[i])
+          }
+          p <- list()
+          for (i in 1:NROW(con)) {
+            p[[i]] <- con$TP[i]/(con$TP[i] + con$FP[i])
+          }
+          se <- list()
+          for (i in 1:NROW(con)) {
+            se[[i]] <- con$TP[i]/(con$TP[i] + con$FN[i])
+          }
+          sp <- list()
+          for (i in 1:NROW(con)) {
+            sp[[i]] <- con$TN[i]/(con$TN[i] + con$FP[i])
+          }
+          a <- do.call(rbind, a)
+          p <- do.call(rbind, p)
+          se <- do.call(rbind, se)
+          f1 <- 2*(p*se)/(p + se)
+          sp <- do.call(rbind, sp)
+          au <- pROC::multiclass.roc(as.numeric(y_true) ~ as.numeric(y_pred), quiet = T)$auc[1]
+          au <- rep(au, length.out= NROW(con))
+          result <- round(cbind(a, p, se, f1, sp, au),3)
+          colnames(result) <- c("Accuracy", 
+                                "Precision", 
+                                "Sensitivity", 
+                                "F1_Score", 
+                                "Specificity", 
+                                "AUC_average")
+          rownames(result) <- rownames(cm)
+          return(result)
+        }
       }
     }
-  }
   ################################## averaging for multi-class ####################
   multiclass_con_av <- function(cv){
     mlm <- do.call(cbind, cv)
@@ -1738,7 +1804,7 @@ shinyServer(function(input, output, session){
   ################################################################# Feature selection #######################################
   #### error checking
   output$uploaded_featuersel_hide_tabpanel <- reactive({
-    error_catghing_featuersel <- function(path, sep){
+    error_catching_featuersel <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -1753,7 +1819,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_featuersel(input$uploaded_featuersel$name, input$datafeatuerselfileformat)
+    error_catching_featuersel(input$uploaded_featuersel$name, input$datafeatuerselfileformat)
   })
   outputOptions(output, 'uploaded_featuersel_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded featuersel table ######################################################
@@ -2707,7 +2773,7 @@ shinyServer(function(input, output, session){
   ################################################################# Dimentionality reduction #######################################
   #### error checking
   output$uploaded_dimred_hide_tabpanel <- reactive({
-    error_catghing_dimred <- function(path, sep){
+    error_catching_dimred <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -2722,7 +2788,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_dimred(input$uploaded_dimred$name, input$datadimredfileformat)
+    error_catching_dimred(input$uploaded_dimred$name, input$datadimredfileformat)
   })
   outputOptions(output, 'uploaded_dimred_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded dimred table ######################################################
@@ -3295,7 +3361,7 @@ shinyServer(function(input, output, session){
   ########################################################## ML-Regression-Simple  ######################
   #### erorr checking
   output$uploaded_slreg_hide_tabpanel <- reactive({
-    error_catghing_slreg <- function(path, sep){
+    error_catching_slreg <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -3310,7 +3376,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_slreg(input$uploaded_slreg$name, input$dataslregfileformat)
+    error_catching_slreg(input$uploaded_slreg$name, input$dataslregfileformat)
   })
   outputOptions(output, 'uploaded_slreg_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded slreg table ######################################################
@@ -3552,7 +3618,7 @@ shinyServer(function(input, output, session){
   ############################################## slreg prediction on new data ##############################
   #### error checking
   output$uploaded_slregdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_slreg_prediction <- function(path, sep){
+    error_catching_slreg_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -3567,7 +3633,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_slreg_prediction(input$uploaded_slreg_prediction$name, input$dataslregfileformat_prediction)
+    error_catching_slreg_prediction(input$uploaded_slreg_prediction$name, input$dataslregfileformat_prediction)
   })
   outputOptions(output, 'uploaded_slregdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -3730,7 +3796,7 @@ shinyServer(function(input, output, session){
   ########################################################## ML-Regression-Multiple ######################
   #### erorr checking
   output$uploaded_mlreg_hide_tabpanel <- reactive({
-    error_catghing_mlreg <- function(path, sep){
+    error_catching_mlreg <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -3745,7 +3811,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_mlreg(input$uploaded_mlreg$name, input$datamlregfileformat)
+    error_catching_mlreg(input$uploaded_mlreg$name, input$datamlregfileformat)
   })
   outputOptions(output, 'uploaded_mlreg_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded mlreg table ######################################################
@@ -3948,7 +4014,7 @@ shinyServer(function(input, output, session){
   ############################################## mlreg prediction on new data ##############################
   #### error checking
   output$uploaded_mlregdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_mlreg_prediction <- function(path, sep){
+    error_catching_mlreg_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -3963,7 +4029,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_mlreg_prediction(input$uploaded_mlreg_prediction$name, input$datamlregfileformat_prediction)
+    error_catching_mlreg_prediction(input$uploaded_mlreg_prediction$name, input$datamlregfileformat_prediction)
   })
   outputOptions(output, 'uploaded_mlregdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -4155,7 +4221,7 @@ shinyServer(function(input, output, session){
   ########################################################## ML-Regression-Polynomial  ######################
   #### erorr checking
   output$uploaded_polyreg_hide_tabpanel <- reactive({
-    error_catghing_polyreg <- function(path, sep){
+    error_catching_polyreg <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -4170,7 +4236,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_polyreg(input$uploaded_polyreg$name, input$datapolyregfileformat)
+    error_catching_polyreg(input$uploaded_polyreg$name, input$datapolyregfileformat)
   })
   outputOptions(output, 'uploaded_polyreg_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded polyreg table ######################################################
@@ -4419,7 +4485,7 @@ shinyServer(function(input, output, session){
   ############################################## polyreg prediction on new data ##############################
   #### error checking
   output$uploaded_polyregdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_polyreg_prediction <- function(path, sep){
+    error_catching_polyreg_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -4434,7 +4500,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_polyreg_prediction(input$uploaded_polyreg_prediction$name, input$datapolyregfileformat_prediction)
+    error_catching_polyreg_prediction(input$uploaded_polyreg_prediction$name, input$datapolyregfileformat_prediction)
   })
   outputOptions(output, 'uploaded_polyregdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -4598,7 +4664,7 @@ shinyServer(function(input, output, session){
   ########################################################## ML-Regression-Logistic ######################
   #### error checking
   output$uploaded_logitreg_hide_tabpanel <- reactive({
-    error_catghing_logitreg <- function(path, sep){
+    error_catching_logitreg <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -4613,7 +4679,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_logitreg(input$uploaded_logitreg$name, input$datalogitregfileformat)
+    error_catching_logitreg(input$uploaded_logitreg$name, input$datalogitregfileformat)
   })
   outputOptions(output, 'uploaded_logitreg_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded logitreg table ######################################################
@@ -5243,7 +5309,7 @@ shinyServer(function(input, output, session){
   ############################################## logitreg prediction on new data ##############################
   #### error checking
   output$uploaded_logitregdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_logitreg_prediction <- function(path, sep){
+    error_catching_logitreg_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -5258,7 +5324,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_logitreg_prediction(input$uploaded_logitreg_prediction$name, input$datalogitregfileformat_prediction)
+    error_catching_logitreg_prediction(input$uploaded_logitreg_prediction$name, input$datalogitregfileformat_prediction)
   })
   outputOptions(output, 'uploaded_logitregdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -5495,7 +5561,7 @@ shinyServer(function(input, output, session){
   ##################################### Random forest (classification -regression) ##############################################
   # error checking
   output$uploaded_randomforestdata_hide_tabpanel <- reactive({
-    error_catghing_randomforest <- function(path, sep){
+    error_catching_randomforest <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -5510,7 +5576,7 @@ shinyServer(function(input, output, session){
         FALSE
       }
     }
-    error_catghing_randomforest(input$uploaded_randomforest$name, input$datarandomforestfileformat)
+    error_catching_randomforest(input$uploaded_randomforest$name, input$datarandomforestfileformat)
   })
   outputOptions(output, 'uploaded_randomforestdata_hide_tabpanel', suspendWhenHidden=FALSE)
   ###############
@@ -6631,7 +6697,7 @@ if(input$randomforestkfoldcv > 0) {
   ############################################## random forest prediction on new data ##############################
   #### error checking
   output$uploaded_randomforestdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_randomforest_prediction <- function(path, sep){
+    error_catching_randomforest_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -6646,7 +6712,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_randomforest_prediction(input$uploaded_randomforest_prediction$name, input$datarandomforestfileformat_prediction)
+    error_catching_randomforest_prediction(input$uploaded_randomforest_prediction$name, input$datarandomforestfileformat_prediction)
   })
   outputOptions(output, 'uploaded_randomforestdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -7096,7 +7162,7 @@ if(input$randomforestkfoldcv > 0) {
   ########################################## KNN class ##############################################
   # error checking
   output$uploaded_knnclassdata_hide_tabpanel <- reactive({
-    error_catghing_knnclass <- function(path, sep){
+    error_catching_knnclass <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -7111,7 +7177,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_knnclass(input$uploaded_knnclass$name, input$dataknnclassfileformat)
+    error_catching_knnclass(input$uploaded_knnclass$name, input$dataknnclassfileformat)
   })
   outputOptions(output, 'uploaded_knnclassdata_hide_tabpanel', suspendWhenHidden=FALSE)
   ###############
@@ -7626,7 +7692,7 @@ if(input$randomforestkfoldcv > 0) {
   # #### erorr checking
   # # error checking
   output$uploaded_knnclassdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_knnclass_prediction <- function(path, sep){
+    error_catching_knnclass_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -7641,7 +7707,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_knnclass_prediction(input$uploaded_knnclass_prediction$name, input$dataknnclassfileformat_prediction)
+    error_catching_knnclass_prediction(input$uploaded_knnclass_prediction$name, input$dataknnclassfileformat_prediction)
   })
   outputOptions(output, 'uploaded_knnclassdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -7846,7 +7912,7 @@ if(input$randomforestkfoldcv > 0) {
   ########################################## KNN Regression ##############################################
   # error checking
   output$uploaded_knnregdata_hide_tabpanel <- reactive({
-    error_catghing_knnreg <- function(path, sep){
+    error_catching_knnreg <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -7861,7 +7927,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_knnreg(input$uploaded_knnreg$name, input$dataknnregfileformat)
+    error_catching_knnreg(input$uploaded_knnreg$name, input$dataknnregfileformat)
   })
   outputOptions(output, 'uploaded_knnregdata_hide_tabpanel', suspendWhenHidden=FALSE)
   ###############
@@ -8080,7 +8146,7 @@ if(input$randomforestkfoldcv > 0) {
   # #### erorr checking
 
   output$uploaded_knnregdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_knnreg_prediction <- function(path, sep){
+    error_catching_knnreg_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -8095,7 +8161,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_knnreg_prediction(input$uploaded_knnreg_prediction$name, input$dataknnregfileformat_prediction)
+    error_catching_knnreg_prediction(input$uploaded_knnreg_prediction$name, input$dataknnregfileformat_prediction)
   })
   outputOptions(output, 'uploaded_knnregdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -8263,7 +8329,7 @@ if(input$randomforestkfoldcv > 0) {
   ####################################################### SVM #################################
   # error checking
   output$uploaded_svmdata_hide_tabpanel <- reactive({
-    error_catghing_svm <- function(path, sep){
+    error_catching_svm <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -8278,7 +8344,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_svm(input$uploaded_svm$name, input$datasvmfileformat)
+    error_catching_svm(input$uploaded_svm$name, input$datasvmfileformat)
   })
   outputOptions(output, 'uploaded_svmdata_hide_tabpanel', suspendWhenHidden=FALSE)
   ###############
@@ -8815,7 +8881,7 @@ if(input$randomforestkfoldcv > 0) {
   ############################################## SVM prediction on new data
   # error checking
   output$uploaded_svmdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_svm_prediction <- function(path, sep){
+    error_catching_svm_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -8830,7 +8896,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_svm_prediction(input$uploaded_svm_prediction$name, input$datasvmfileformat_prediction)
+    error_catching_svm_prediction(input$uploaded_svm_prediction$name, input$datasvmfileformat_prediction)
   })
   outputOptions(output, 'uploaded_svmdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -9197,7 +9263,7 @@ if(input$randomforestkfoldcv > 0) {
   ####################################################### naive bayes #################################
   # error checking
   output$uploaded_naivebayesdata_hide_tabpanel <- reactive({
-    error_catghing_naivebayes <- function(path, sep){
+    error_catching_naivebayes <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -9212,7 +9278,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_naivebayes(input$uploaded_naivebayes$name, input$datanaivebayesfileformat)
+    error_catching_naivebayes(input$uploaded_naivebayes$name, input$datanaivebayesfileformat)
   })
   outputOptions(output, 'uploaded_naivebayesdata_hide_tabpanel', suspendWhenHidden=FALSE)
   ###############
@@ -9776,7 +9842,7 @@ if(input$randomforestkfoldcv > 0) {
   #### erorr checking
   # error checking
   output$uploaded_naivebayesdata_prediction_hide_tabpanel <- reactive({
-    error_catghing_naivebayes_prediction <- function(path, sep){
+    error_catching_naivebayes_prediction <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -9791,7 +9857,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_naivebayes_prediction(input$uploaded_naivebayes_prediction$name, input$datanaivebayesfileformat_prediction)
+    error_catching_naivebayes_prediction(input$uploaded_naivebayes_prediction$name, input$datanaivebayesfileformat_prediction)
   })
   outputOptions(output, 'uploaded_naivebayesdata_prediction_hide_tabpanel', suspendWhenHidden=FALSE)
   ############### uploaded prediction table
@@ -9995,9 +10061,9 @@ if(input$randomforestkfoldcv > 0) {
     }
   )
   ################################################################# clustering #######################################
-  #### erorr checking
+  #### error checking
   output$uploaded_clustering_hide_tabpanel <- reactive({
-    error_catghing_clustering <- function(path, sep){
+    error_catching_clustering <- function(path, sep){
       ext <- str_extract(path, '(?=.)[a-z]{3}$')
       if(sep == ","){
         sepa <- "csv"
@@ -10012,7 +10078,7 @@ if(input$randomforestkfoldcv > 0) {
         FALSE
       }
     }
-    error_catghing_clustering(input$uploaded_clustering$name, input$dataclusteringfileformat)
+    error_catching_clustering(input$uploaded_clustering$name, input$dataclusteringfileformat)
   })
   outputOptions(output, 'uploaded_clustering_hide_tabpanel', suspendWhenHidden=FALSE)
   ################################### uploaded clustering table ######################################################
@@ -10245,5 +10311,218 @@ if(input$randomforestkfoldcv > 0) {
     }
     
   })
+  
+  ######################################### Breast cancer subtyping #############################
+  #### error checking
+  output$uploaded_neuralnetwork_hide_tabpanel <- reactive({
+    error_catching_neuralnetwork <- function(path, sep){
+      ext <- str_extract(path, '(?=.)[a-z]{3}$')
+      if(sep == ","){
+        sepa <- "csv"
+      } else {
+        sepa <- "tsv"
+      }
+      table <- !is.null(input$uploaded_neuralnetwork)
+      checknull <- NCOL(uploaded_neuralnetwork_data()) > 1
+      if(table && checknull && sepa == ext){
+        TRUE
+      } else {
+        FALSE
+      }
+    }
+    error_catching_neuralnetwork(input$uploaded_neuralnetwork$name, input$dataneuralnetworkfileformat)
+  })
+  outputOptions(output, 'uploaded_neuralnetwork_hide_tabpanel', suspendWhenHidden=FALSE)
+  ################################### uploaded neural network table ######################################################
+  uploaded_neuralnetwork_data <- eventReactive(input$uploaded_neuralnetwork, {
+    if(!is.null(input$uploaded_neuralnetwork)){
+      if(input$dataneuralnetworkfileformat == "," && input$neuralnetworkheader == "Yes"){
+        rawdata <- try(read_csv(input$uploaded_neuralnetwork$datapath,
+                                col_names = T),
+                       silent = T)
+        rawdata
+      } 
+      else if(input$dataneuralnetworkfileformat == "," && input$neuralnetworkheader == "No") {
+        rawdata <- try(read_csv(input$uploaded_neuralnetwork$datapath,
+                                col_names = F),
+                       silent = T)
+        rawdata
+      }
+      else if((input$dataneuralnetworkfileformat == "\t" && input$neuralnetworkheader == "Yes")){
+        rawdata <- try(read_tsv(input$uploaded_neuralnetwork$datapath,
+                                col_names = T),
+                       silent = T)
+        rawdata
+      }
+      else if((input$dataneuralnetworkfileformat == "\t" && input$neuralnetworkheader == "No")){
+        rawdata <- try(read_tsv(input$uploaded_neuralnetwork$datapath,
+                                col_names = F),
+                       silent = T)
+        rawdata
+      }
+    }
+  })
+  ########################################### neural network table
+  output$neuralnetworkdatashow <- renderDT({
+    if(!is.null(input$uploaded_neuralnetwork) && input$neuralnetworkprepross) {
+      uploaded_neuralnetwork_table <- uploaded_neuralnetwork_data() %>%
+        datatable(
+          fillContainer = F,
+          options = list(scrollX = TRUE),
+          extensions = "AutoFill",
+          style = "auto",
+          rownames = FALSE)
+      uploaded_neuralnetwork_table
+    }
+  })
+  
+  neuralnetwork_buildmodel_reactive <- reactive({
+    if(!is.null(uploaded_neuralnetwork_data()) && input$neuralnetworkbuildmodel) {
+      NewData <- isolate(uploaded_neuralnetwork_data())
+      NewData <- data.frame(NewData)
+      load("data/Data1.RData")
+      fac <- ncol(Data1)
+      colnames(NewData)[1] <- "Genes"
+      rownames(NewData) <- NewData$Genes
+      NewData <- NewData[,-1]
+      common_mat <- which(colnames(Data1) %in% rownames(NewData))
+      common_new <- which(rownames(NewData) %in% colnames(Data1)[-fac])
+      Data1 <- Data1[, c(common_mat, fac)]
+      NewData <- NewData[common_new, ] %>%
+        t() %>%
+        as.matrix()
+      fac <- ncol(Data1)
+      subtype <- data.frame(subtype = Data1$subtype)
+      subtype$subtype <- factor(subtype$subtype, levels = c("Basal",
+                                                            "Her2",
+                                                            "LumA",
+                                                            "LumB",
+                                                            "Normal"),
+                                labels = c(0:4))
+      df_ann <- data.matrix(Data1[,-fac])
+      ind <- sample(3, nrow(df_ann), replace = T, prob = c(.6, .2, .2))
+      X_train <- df_ann[ind==1,1:fac-1]
+      X_test <- df_ann[ind==2, 1:fac-1]
+      X_val <- df_ann[ind==3, 1:fac-1]
+      trainingtarget <- subtype[ind==1,1]
+      testtarget <- subtype[ind==2, 1]
+      valtarget <- subtype[ind==3, 1]
+      X_train <- X_train[, order(colnames(X_train))]
+      X_test <- X_test[, order(colnames(X_test))]
+      X_val <- X_val[, order(colnames(X_val))]
+      y_train <- to_categorical(trainingtarget)
+      y_test <- to_categorical(testtarget)
+      y_val <- to_categorical(valtarget)
+      num_labels <- ncol(y_train)
+      model <- keras_model_sequential()
+      model %>%
+        layer_dense(units = 1000, input_shape = ncol(X_train)) %>%
+        layer_activation_leaky_relu() %>%
+        layer_dropout(0.7) %>%
+        layer_dense(units = 400, kernel_regularizer = regularizer_l2(0.09)) %>%
+        layer_activation_leaky_relu() %>%
+        layer_dropout(0.6) %>%
+        layer_dense(units = 20) %>%
+        layer_activation_leaky_relu() %>%
+        layer_dropout(0.4) %>%
+        layer_dense(units = num_labels, activation = 'softmax')
+      model %>% compile(loss = 'categorical_crossentropy',
+                        optimizer_adam(learning_rate = 0.01),
+                        metrics = c('accuracy'))
+      early_stop <- callback_early_stopping(monitor = "val_loss",
+                                            patience = 3,
+                                            mode = "min")
+      history <- model %>%
+        fit(X_train,
+            y_train,
+            epochs = 100,
+            batch_size = 1700,
+            callbacks = list(early_stop),
+            validation_data = list(X_val, y_val)
+        )
+      
+      y_pred <- model %>% predict(X_test)
+      y_pred <- format(round(y_pred, 2), nsamll = 4)
+      y_pred <- matrix(as.numeric(as.character(y_pred)), ncol = 5)
+      y_pred <- max.col(y_pred)
+      y_pred <- factor(y_pred, levels = c(1:5),
+                       labels = c("Basal",
+                                  "Her2",
+                                  "LumA",
+                                  "LumB",
+                                  "Normal"))
+      y_test <- max.col(y_test)
+      y_test <- factor(y_test, levels = c(1:5),
+                       labels = c("Basal",
+                                  "Her2",
+                                  "LumA",
+                                  "LumB",
+                                  "Normal"))
+      result <- confusion_matrix(y_test, y_pred)
+      if(!is.null(NewData)) {
+        y_pred_NewData <- model %>% predict(NewData)
+        y_pred_NewData <- format(round(y_pred_NewData, 2), nsamll = 4)
+        y_pred_NewData <- max.col(y_pred_NewData)
+        y_pred_NewData <- factor(y_pred_NewData, levels = c(1:5),
+                                 labels = c("Basal",
+                                            "Her2",
+                                            "LumA",
+                                            "LumB",
+                                            "Normal"))
+        names(y_pred_NewData) <- rownames(NewData)
+      } else {
+        y_pred_NewData <- NULL
+      }
+      allresult <- list(result = result, pnewdata = y_pred_NewData)
+      return(allresult)
+      }
+      
+  })
+  
+  output$neuralnetworkmodelperformance <- renderDT({
+    if(!is.null(neuralnetwork_buildmodel_reactive())) {
+      metrics <- isolate(neuralnetwork_buildmodel_reactive())
+      metrics <- data.frame(metrics$result)
+      metrics_table <- metrics %>%
+        datatable(
+          options = list(dom = "t"),
+          rownames = TRUE)
+      metrics_table
+    }
+  })
+  
+  output$neuralnetworkmodelresult <- renderDT({
+    if(!is.null(neuralnetwork_buildmodel_reactive())) {
+      pnewdata <- isolate(neuralnetwork_buildmodel_reactive()$pnewdata)
+      pnewdata <- data.frame(Prediction = pnewdata)
+      pnewdata_table <- pnewdata %>%
+        datatable(
+          options = list(dom = "ftp"),
+          rownames = TRUE)
+      pnewdata_table
+    }
+  })
+  
+  
+  output$download_prediction_neuralnetwork <- renderUI({
+    if(input$neuralnetworkbuildmodel) {
+      downloadButton('neuralnetworkprediction_table', 'Download prediction table')
+    }
+  })
+  output$neuralnetworkprediction_table <- downloadHandler(
+    filename = function(){
+      paste0(Sys.Date(),"_neuralnetwork_prediction_table.csv")
+    },
+    content = function(file){
+      pred <- isolate(neuralnetwork_buildmodel_reactive())
+      pred <- data.frame(pred$pnewdata)
+      pnewdata <- data.frame(Samples = rownames(pred),
+                               Prediction = pred)
+      pnewdata %>%
+        write_csv(file)
+    }
+  )
+  
+  
   
 })

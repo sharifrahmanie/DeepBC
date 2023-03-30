@@ -1,9 +1,8 @@
+library(BiocManager)
+library(ComplexHeatmap)
+library(limma)
 require(tidyverse)
 require(DT)
-library(BiocManager)
-options(repos = BiocManager::repositories())
-library(limma)
-require(shinydashboard)
 require(reshape2)
 require(shinyjs)
 require(dlookr)
@@ -13,7 +12,6 @@ require(caret)
 require(pROC)
 require(MLmetrics)
 require(class)
-require(ElemStatLearn)
 require(RColorBrewer)
 require(FNN)
 require(cluster)
@@ -24,12 +22,12 @@ require(psych)
 require(Boruta)
 require(glmnet)
 require(igraph)
-library(ComplexHeatmap)
 require(shinyDarkmode)
 require(car)
 require(shinyWidgets)
 require(leaflet)
 require(shinyBS)
+require(shinydashboard)
 dashheader <- dashboardHeader(title = "",titleWidth = 230,
                               tags$li(class = "dropdown",fluidRow(
                               
@@ -39,7 +37,7 @@ dashheader <- dashboardHeader(title = "",titleWidth = 230,
                               )),
                               tags$li(class = "dropdown",  tags$a(href="https://github.com/sharifrahmanie/DeepBC/issues/new", icon("bug"), "Report bug", target= "_blank")),
                               tags$li(class = "dropdown",  tags$a(href="mailto:rahami.biotech@gmail.com", icon("envelope"), "Contact", target= "_blank")),
-                              tags$li(class = "dropdown",  tags$a(href="https://www.instagram.com/sharifrahmani_e/", icon("instagram"), "Instagram", target= "_blank")),
+                              tags$li(class = "dropdown",  tags$a(href="https://www.instagram.com/biomedical_informatics/", icon("instagram"), "Instagram", target= "_blank")),
                               tags$li(class = "dropdown", tags$a(href="https://www.linkedin.com/in/sharifrahmanie/", icon("linkedin"), "Linkedin", target= "_blank")),
                               tags$li(class = "dropdown", tags$a(href="https://github.com/sharifrahmanie", icon("github"), "Github", target= "_blank")),
                               tags$li(class = "dropdown", tags$a(href="https://scholar.google.com/citations?user=6f8yQfsAAAAJ&hl=en", tags$img(src="google-scholar.png", height = "20", width= "20"), "Google scholar", target= "_blank"))
@@ -81,7 +79,7 @@ dashSidebar <- dashboardSidebar(
                 menuSubItem(text = "Naive Bayes", tabName = "naivebayes",icon = icon("envelope", lib = "font-awesome")),
                 menuSubItem(text = "Clustering", tabName = "clustering",icon = icon("sitemap"))
               ),
-              menuItem(text = "Breast cancer subtyping",tabName = "DL",icon = icon("connectdevelop"), badgeLabel = "Coming soon"),
+              menuItem(text = "Breast cancer subtyping",tabName = "deepneuralnetworks",icon = icon("connectdevelop"), badgeLabel = "New"),
               uiOutput('style_tag')
   )
               
@@ -102,7 +100,7 @@ tabItems(
                                             tags$p(style="text-align: justify;",tags$b("DeepBC"), "(Deep Learning for Breast Cancer) is a free shiny web application framework to allow users (especially non-coders) to perform differential gene expression analyses and machine learning algorithms just by a few simple clicks.
                            It covers routine gene expression analyses, including DEGs table, plot volcano, MD,  box, heatmap, and network.
                            The machine learning part helps users with feature selection, dimensionality reduction, regression (including simple, multiple, polynomial, and logistic), random forest, k-nearest neighbor, support vector machine, naive Bayes, and clustering.
-                           A breast cancer subtyping section using artificial neural networks will be available soon. A complete list of R packages used by this website is available ",actionBttn(inputId = "packagesver",label = "here;",style = "jelly", size = "xs")," however, a short description and the name and the carn's link of packages are provided in each section.
+                           A breast cancer subtyping section using artificial neural networks is available now. A complete list of R packages used by this website is available ",actionBttn(inputId = "packagesver",label = "here;",style = "jelly", size = "xs")," however, a short description and the name and the carn's link of packages are provided in each section.
                            DeepBC deals with user-provided files; if you encounter an error, please report it in report bug with a short discription of your file. The maximum file size supported is", tags$b("10 Mb."), tags$a(href= "https://www.youtube.com/channel/UCMk882DRuOSwrCSbn0xHk-w/videos", target= "_blank", "Tutorials.")))),
                              
       bsTooltip(id = "packagesver", "Click me",
@@ -1686,41 +1684,57 @@ tabItems(
             ),
     ############################# Deep learning ################################
     tabItem(
-      tabName = "dklll",
-      h1("Making a prediction using DeepBC model"),
-      #tags$img(src="rstudio.png", height = 140, width = 400),
+      tabName = "deepneuralnetworks",
+      
       fluidRow(
-        box(title = "File uploading",
-            status = "primary", 
-            solidHeader = TRUE, 
-            collapsible = TRUE, 
-            width = 5,
-            
-            radioButtons("fileformat",
-                         label = "Select a data format",
-                         choices = c(csv = ",", Tab= "\t")
-                         
-            ),
-            fileInput("dlgenepred",
-                      "Upload candidate genes for prediction",
-                      multiple = FALSE,
-                      accept = c(".csv", ".tsv")
-                      
-            ),
-            actionButton("prediction",
-                         "Predicion",
-                         width = "100%")
-            
-           
-            ),
-        tabBox(id = "dlresult",
-          title = "Result",side = "right",
-          width = 7,
-               ),
+        column(12, box(title = "Deep learning",status = "info", collapsible = T, solidHeader = T, width = "100%",
+                       infoBox(title = "Breast cancer subtyping", value = 13, icon = icon("connectdevelop"), color = "navy", width = 4, fill = T),
+                       p(style="text-align: justify;","An artificial neural network (ANN) is a machine learning model inspired by the structure and function
+                       of the human brain. It consists of multiple layers of interconnected nodes, called neurons, which work together to process information and make predictions.
+Each neuron receives input from other neurons, processes that input using an activation function, and produces an output that is passed on to other neurons. 
+                         By adjusting the connections and weights between neurons, an ANN can learn to perform tasks such as classifying breast cancer subtypes, including Basal,
+                         Claudin-low, Her2, LumA, LumB, and Normal. To calssify breast cancer subtypes, DeepBC uses", 
+                         tags$a(href= "https://cran.r-project.org/web/packages/keras/index.html", target= "_blank", "keras"), " which uses",
+                         tags$a(href= "https://www.tensorflow.org/", target= "_blank", "TensorFlow v 2.10"), "in backend."))),
+        column(4, box(title = "File uploading",status = "primary", solidHeader = T,collapsible = T, width = "100%",
+                      radioButtons(inputId = "dataneuralnetworkfileformat",label = "Select a data format",choices = c(csv = ",", Tab= "\t")),
+                      radioButtons(inputId = "neuralnetworkheader",label = "Header",choices = c("Yes", "No")),
+                      fileInput("uploaded_neuralnetwork","Upload a table",multiple = FALSE,accept = c(".csv", ".tsv"),width = "100%",),
+                      actionButton("neuralnetworkprepross","Process", width = "100%"))),
+        column(8,tabBox(width = 100,
+                        tabPanel(title = "NeuralNetwork", 
+                                 fluidRow(
+                                   column(12,
+                                          tags$img(src="neuralnetwork.png", height = 300, width = "95%")),
+                                   )),
+                        
+        )),
         
-        
-            
-        )
+        conditionalPanel(condition = "input.neuralnetworkprepross && output.uploaded_neuralnetwork_hide_tabpanel == false",
+                         infoBox(title = "Error",subtitle = "It must be header, separation field, or file format.",color = "olive",icon = icon("bug"),fill = TRUE))
+      ),
+      conditionalPanel(condition = c("input.neuralnetworkprepross && output.uploaded_neuralnetwork_hide_tabpanel"),
+                       tabsetPanel(type = "tabs",
+                                   tabPanel(title = "Table", icon = icon("table"),
+                                            box(title = "Uploaded table",status = "primary", collapsible = T, solidHeader = T, width = "100%",
+                                                DTOutput("neuralnetworkdatashow"))),
+                                   tabPanel(title = "Model", icon = icon("cog"),
+                                            box(title = "Model",status = "primary", collapsible = T, solidHeader = T, width = "100%",
+                                                column(12),
+                                                column(12,
+                                                column(5),column(2, actionButton("neuralnetworkbuildmodel","Build model", width = "100%")),column(5)),
+                                                column(12, br()),
+                                                column(12,
+                                                conditionalPanel(condition = c("input.neuralnetworkbuildmodel"),
+                                                box(title = "Model Performance",status = "primary", collapsible = T, solidHeader = T, width = "100%",
+                                                DTOutput("neuralnetworkmodelperformance")),
+                                                box(title = "New data prediction",status = "primary", collapsible = T, solidHeader = T, width = "100%",
+                                                    uiOutput("download_prediction_neuralnetwork"),
+                                                DTOutput("neuralnetworkmodelresult"))))
+                                                ))
+                                   
+                       ))
+      #
       )
     )
     
